@@ -1,0 +1,49 @@
+workflows:
+  sample-workflow:
+    name: workflow
+    max_build_duration: 120
+    instance_type: mac_mini_m1
+    integrations:
+      app_store_connect: app
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: application.SugarBloom
+      vars:
+        APP_STORE_CONNECT_KEY: app
+        APP_STORE_APPLE_ID: 6797266701
+        BUNDLE_ID: "application.SugarBloom"
+        XCODE_PROJECT: "SugarBloom.xcodeproj"
+        XCODE_SCHEME: "SugarBloom"
+    scripts:
+      - name: Clean and Resolve SPM Dependencies
+        script: |
+          # Очистка для избежания проблем с кэшем
+          rm -rf ~/Library/Developer/Xcode/DerivedData
+          rm -rf .build
+          xcodebuild clean -project "$CM_BUILD_DIR/$XCODE_PROJECT" -scheme "$XCODE_SCHEME"
+          xcodebuild -resolvePackageDependencies -project "$CM_BUILD_DIR/$XCODE_PROJECT" -scheme "$XCODE_SCHEME"
+      - name: Set up provisioning profiles settings on Xcode project
+        script: xcode-project use-profiles
+      - name: Increment build number
+        script: |
+          cd $CM_BUILD_DIR
+          sed -i '' "s/CURRENT_PROJECT_VERSION = [^;]*;/CURRENT_PROJECT_VERSION = $BUILD_NUMBER;/g" "$XCODE_PROJECT/project.pbxproj"
+          agvtool new-version -all $BUILD_NUMBER
+      - name: Build ipa for distribution
+        script: |
+          xcode-project build-ipa \
+            --project "$CM_BUILD_DIR/$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
+    publishing:
+      app_store_connect:
+        api_key: $APP_STORE_CONNECT_KEY
+        auth: integration
+        submit_to_app_store: true
+        cancel_previous_submissions: true
+        release_type: SCHEDULED

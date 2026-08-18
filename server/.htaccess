@@ -1,0 +1,106 @@
+# ============================================================================
+#  Ocean Cast API — .htaccess for the hosting document root (public_html)
+# ============================================================================
+#
+#  Layout this file expects — the CONTENTS of the `server` folder uploaded
+#  straight into public_html:
+#
+#      public_html/
+#      ├── .htaccess          <- this file
+#      ├── .env               <- your configuration (never public)
+#      ├── public/
+#      │   ├── index.php      <- the only file that is ever executed
+#      │   └── .htaccess
+#      ├── src/               <- blocked below
+#      ├── migrations/        <- blocked below
+#      ├── database/          <- blocked below
+#      ├── tools/             <- blocked below
+#      └── storage/           <- blocked below (logs)
+#
+#  Result: https://your-domain.com/v1/health  ->  public/index.php
+#
+#  If you put the API in a SUB-FOLDER instead (public_html/api), change
+#  RewriteBase to /api/ and set APP_BASE_PATH=api in .env.
+# ----------------------------------------------------------------------------
+
+Options -Indexes -MultiViews
+ServerSignature Off
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # --- 1. Force HTTPS ------------------------------------------------------
+    # 308 keeps the method and body, so a redirected POST stays a POST.
+    # The extra conditions stop a redirect loop when TLS is terminated by the
+    # hosting proxy and PHP itself sees plain HTTP.
+    RewriteCond %{HTTPS} !=on
+    RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+    RewriteCond %{HTTP:X-Forwarded-SSL} !=on
+    RewriteCond %{HTTP_HOST} !^localhost [NC]
+    RewriteCond %{HTTP_HOST} !^127\. [NC]
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=308,L]
+
+    # --- 2. Keep the Authorization header ------------------------------------
+    # Every API call is a Bearer token. CGI/FastCGI setups (Hostinger included)
+    # drop this header unless it is passed through explicitly — without these
+    # two lines every request answers 401 missing_token.
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule ^ - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+    SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+
+    # --- 3. Nothing but public/ is reachable ---------------------------------
+    # Let ACME keep working so SSL renewal is not broken by the dotfile rule.
+    RewriteRule ^\.well-known/ - [L]
+
+    RewriteRule ^(src|migrations|database|tools|storage|vendor|node_modules)(/|$) - [F,L]
+    RewriteRule (^|/)\.(?!well-known) - [F,L]
+    RewriteRule \.(env|sql|md|log|ini|bak|swp|json|lock|sh|dist|example)$ - [F,L]
+
+    # --- 4. Real files inside public/ are served as-is ------------------------
+    RewriteCond %{DOCUMENT_ROOT}/public%{REQUEST_URI} -f
+    RewriteRule ^(.*)$ public/$1 [L]
+
+    # --- 5. Everything else goes to the single front controller --------------
+    RewriteRule ^ public/index.php [L]
+</IfModule>
+
+# If mod_rewrite is unavailable the API must fail loudly, not serve source code.
+<IfModule !mod_rewrite.c>
+    <FilesMatch ".*">
+        Require all denied
+    </FilesMatch>
+</IfModule>
+
+# --- Belt and braces: block the same paths without relying on rewrite --------
+<FilesMatch "^\.env|\.(env|sql|md|log|ini|bak|swp|lock|sh|dist|example)$">
+    Require all denied
+</FilesMatch>
+
+<FilesMatch "^(composer\.(json|lock)|package(-lock)?\.json)$">
+    Require all denied
+</FilesMatch>
+
+# --- Response headers --------------------------------------------------------
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+    Header always set Referrer-Policy "no-referrer"
+    Header always set Cross-Origin-Resource-Policy "same-origin"
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains" "expr=%{HTTPS} == 'on'"
+    Header always unset X-Powered-By
+    Header always unset Server
+</IfModule>
+
+# --- PHP settings the API relies on -----------------------------------------
+# Hostinger uses LiteSpeed; both forms are accepted, unknown ones are ignored.
+<IfModule lsapi_module>
+    php_value upload_max_filesize 8M
+    php_value post_max_size 8M
+    php_value max_execution_time 60
+    php_flag display_errors off
+    php_flag expose_php off
+</IfModule>
+
+# The API answers JSON only; never let the server guess an encoding.
+AddDefaultCharset UTF-8
