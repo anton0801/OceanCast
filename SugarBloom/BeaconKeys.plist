@@ -2,11 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>aps-environment</key>
-	<string>development</string>
-	<key>com.apple.security.app-sandbox</key>
-	<true/>
-	<key>com.apple.security.files.user-selected.read-only</key>
-	<true/>
+	<key>OCBeaconKey</key>
+	<string>b9828628677cc4bac53a96ebb60e3d4394681b25a764247941c31d4006884442</string>
 </dict>
 </plist>

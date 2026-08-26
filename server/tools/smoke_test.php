@@ -124,6 +124,39 @@ check('malformed token → 401', $r['status'] === 401);
 $r = call('GET', '/v1/profile', null, $tokenA);
 check('valid token → 200', $r['status'] === 200 && ($r['body']['user']['email'] ?? '') === $emailA);
 
+// ----------------------------------------------------------------- beacon
+// Device attribution runs before sign-in. When the server enforces encryption
+// (a key set in production) a plaintext body is refused with 400; otherwise it
+// is accepted. Both outcomes are valid, so the checks tolerate either.
+fwrite(STDOUT, "\nDevice attribution (beacon)\n");
+$deviceRef = '1699000000000-' . random_int(1000000000, 9999999999);
+
+$r = call('POST', '/v1/beacon', [
+    'ref' => $deviceRef, 'sys' => 'iOS 18.5', 'pkg' => 'application.SugarBloom',
+    'proj' => '1029384756', 'listing' => 'id6600000000', 'locale' => 'en_US',
+]);
+$encEnforced = $r['status'] === 400 && ($r['body']['error']['code'] ?? '') === 'payload_required';
+check('beacon collect accepted or encryption enforced',
+    ($r['status'] === 200 && ($r['body']['status'] ?? '') === 'ok') || $encEnforced, 'got ' . $r['status']);
+
+$r = call('POST', '/v1/beacon/resolve', [
+    'ref' => $deviceRef, 'adTag' => strtoupper(uuid()),
+    'attr' => ['af_status' => 'Non-organic', 'media_source' => 'googleadwords_int', 'campaign' => 'spring'],
+]);
+check('beacon resolve answers the gate',
+    ($r['status'] === 200 && array_key_exists('authorized', $r['body'])) || $encEnforced, 'got ' . $r['status']);
+
+if (!$encEnforced) {
+    $r = call('POST', '/v1/beacon', ['sys' => 'iOS 18.5']);
+    check('beacon without a device ref is rejected', $r['status'] === 422 && isset($r['body']['error']['fields']['ref']));
+}
+
+$r = call('POST', '/v1/beacon/link', ['ref' => $deviceRef]);
+check('beacon link needs a token', $r['status'] === 401 && ($r['body']['error']['code'] ?? '') === 'missing_token');
+
+$r = call('POST', '/v1/beacon/link', ['ref' => $deviceRef], $tokenA);
+check('beacon link ties the account to the device', $r['status'] === 200 && ($r['body']['status'] ?? '') === 'linked', 'got ' . $r['status']);
+
 // --------------------------------------------------------------- household
 fwrite(STDOUT, "\nHousehold and resources\n");
 $householdId = uuid();

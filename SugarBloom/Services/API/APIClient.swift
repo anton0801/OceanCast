@@ -31,13 +31,18 @@ actor RefreshCoordinator {
 final class APIClient {
     static let shared = APIClient()
 
-    /// Configurable so the same build can talk to localhost, staging or production.
-    static let defaultBaseURL = "https://ocean-cast.space"
+    nonisolated static let defaultBaseURL = "https://ocean-cast.space"
+
+    nonisolated static func resolveBaseURL() -> URL? {
+        let stored = UserDefaults.standard.string(forKey: "api.baseURL")
+        let raw = (stored ?? defaultBaseURL).trimmingCharacters(in: .whitespaces)
+        guard !raw.isEmpty else { return nil }
+        return URL(string: raw.hasSuffix("/") ? String(raw.dropLast()) : raw)
+    }
 
     private let session: URLSession
     private let coordinator = RefreshCoordinator()
 
-    /// Called when the session is over for good, so the UI can sign the user out.
     var onSessionLost: (() -> Void)?
 
     init() {

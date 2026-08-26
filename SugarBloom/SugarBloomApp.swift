@@ -1,17 +1,16 @@
-//
-//  SugarBloomApp.swift
-//  Ocean Cast
-//
-
 import SwiftUI
 
 @main
 struct SugarBloomApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var store = AppStore()
     @State private var network = NetworkMonitor()
+    @State private var networkGate = NetworkGate()
     @State private var notifications = NotificationService()
     @State private var auth = AuthStore()
     @State private var sync = SyncService()
+    @State private var bootstrap = AppBootstrap()
+    @State private var flow = AppFlow()
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
@@ -19,14 +18,15 @@ struct SugarBloomApp: App {
             ContentView()
                 .environment(store)
                 .environment(network)
+                .environment(networkGate)
                 .environment(notifications)
                 .environment(auth)
                 .environment(sync)
+                .environment(bootstrap)
+                .environment(flow)
                 .task {
                     KeychainStore.purgeIfReinstalled()
                     await notifications.refreshStatus()
-                    // Restoring a session is a network call: the UI is already
-                    // usable from local records while it runs.
                     await auth.restore()
                     if auth.isSignedIn {
                         await sync.syncNow(store: store, auth: auth)

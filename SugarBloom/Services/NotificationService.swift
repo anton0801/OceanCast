@@ -1,11 +1,3 @@
-//
-//  NotificationService.swift
-//  Ocean Cast
-//
-//  Local reminders for the user's own dates. Reminders are rebuilt from the
-//  saved batches, so a notification can never outlive the record behind it.
-//
-
 import Foundation
 import UserNotifications
 import Observation

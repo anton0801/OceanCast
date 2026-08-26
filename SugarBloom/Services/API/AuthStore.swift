@@ -1,11 +1,3 @@
-//
-//  AuthStore.swift
-//  Ocean Cast
-//
-//  Session state for the app. Signing in is optional: everything works locally
-//  without an account, and an account only adds sync across devices.
-//
-
 import Foundation
 import Observation
 
@@ -79,6 +71,7 @@ final class AuthStore {
             )
             self.client.store(response.auth)
             self.state = .signedIn(response.user)
+            self.linkDeviceIfPossible()
         }
     }
 
@@ -91,6 +84,7 @@ final class AuthStore {
             )
             self.client.store(response.auth)
             self.state = .signedIn(response.user)
+            self.linkDeviceIfPossible()
         }
     }
 
@@ -207,6 +201,14 @@ final class AuthStore {
         state = .signedIn(profile.user)
         records = profile.records ?? [:]
         serverHousehold = profile.household
+        linkDeviceIfPossible()
+    }
+
+    /// Best-effort: tie this device key to the signed-in account so the server
+    /// knows which accounts were seen on which install.
+    private func linkDeviceIfPossible() {
+        let ref = LiveAttributionProvider().deviceRef()
+        Task { await BeaconClient().link(ref: ref) }
     }
 
     private func run(_ work: @escaping () async throws -> Void) async throws {

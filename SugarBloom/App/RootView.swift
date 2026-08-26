@@ -1,12 +1,10 @@
-//
-//  RootView.swift
-//  Ocean Cast
-//
-
 import SwiftUI
 
 struct RootView: View {
     @Environment(AppStore.self) private var store
+    @Environment(NotificationService.self) private var notifications
+    @Environment(AuthStore.self) private var auth
+    @Environment(SyncService.self) private var sync
     @State private var navigator = Navigator()
 
     var body: some View {

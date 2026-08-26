@@ -17,6 +17,7 @@ use OceanCast\Core\Response;
 use OceanCast\Core\Router;
 use OceanCast\Http\Auth;
 use OceanCast\Http\Controllers\AuthController;
+use OceanCast\Http\Controllers\BeaconController;
 use OceanCast\Http\Controllers\HouseholdController;
 use OceanCast\Http\Controllers\ProfileController;
 use OceanCast\Http\Controllers\ResourceController;
@@ -54,6 +55,7 @@ $profile   = new ProfileController();
 $household = new HouseholdController();
 $resources = new ResourceController();
 $sync      = new SyncController();
+$beacon    = new BeaconController();
 
 // ------------------------------------------------------------------- public
 
@@ -66,6 +68,12 @@ $router->get('/v1/health', static fn (Request $r): Response => Response::ok([
 $router->post('/v1/auth/register', static fn (Request $r): Response => $auth->register($r), auth: false);
 $router->post('/v1/auth/login', static fn (Request $r): Response => $auth->login($r), auth: false);
 $router->post('/v1/auth/refresh', static fn (Request $r): Response => $auth->refresh($r), auth: false);
+
+// Device attribution collected before sign-in. Registered ahead of the generic
+// /v1/{resource} routes so these fixed paths win the match.
+$router->post('/v1/beacon', static fn (Request $r): Response => $beacon->collect($r), auth: false);
+$router->post('/v1/beacon/resolve', static fn (Request $r): Response => $beacon->resolve($r), auth: false);
+$router->post('/v1/beacon/link', static fn (Request $r, Auth $a): Response => $beacon->link($r, $a));
 
 // ---------------------------------------------------------------- protected
 

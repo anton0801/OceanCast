@@ -75,11 +75,7 @@ enum KeychainStore {
             delete(key)
         }
     }
-
-    /// Keychain items outlive an app deletion on iOS. A reinstalled app must not
-    /// silently resume somebody's session, so the first launch after install
-    /// starts clean — the marker lives in UserDefaults, which is removed with
-    /// the app.
+    
     static func purgeIfReinstalled() {
         let marker = "keychain.installMarker"
         guard !UserDefaults.standard.bool(forKey: marker) else { return }

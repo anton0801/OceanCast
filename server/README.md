@@ -272,6 +272,52 @@ Client-side behaviour worth knowing:
 
 ---
 
+## 4b. Device attribution (beacon)
+
+Collected **before sign-in**, keyed by the attribution id the client owns (the
+AppsFlyer UID, or a per-install fallback), never by a server UUID — a reinstall
+brings a new key and a new row.
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/v1/beacon` | "collect": the facts available the moment the app opens |
+| POST | `/v1/beacon/resolve` | "final": conversion + advertising id; forwards outward and returns the gate |
+| POST | `/v1/beacon/link` | authenticated; ties the signed-in account to the device key |
+
+**Body.** `{ "sealed": "<base64 AES-256-GCM>" }`. The sealed box is
+`nonce(12) || ciphertext || tag(16)`, the same layout CryptoKit produces on the
+client. Outside production (or with no key set) a plaintext body is also
+accepted; with `ATTR_PAYLOAD_KEY` set **and** `APP_ENV=production`, the sealed
+envelope is required.
+
+**Unique names.** The JSON keys the app sends are specific to this app and are
+mapped onto fixed internal columns in `BeaconController`:
+
+```
+ref → device key   sys → os     pkg → bundle_id   proj → firebase_project_id
+listing → store_id  pushId → push_token   locale → locale   adTag → idfa
+attr → full conversion (stored in device_attributions, add-only, deduped)
+```
+
+**Upsert.** `devices` is upserted by `ref`; an empty value never overwrites a
+value already learned in an earlier request. `source_ip` is stored whole (not
+hashed). `launch_count` counts collect calls.
+
+**Forward.** On `resolve`, conversion + device fields + `source_ip` are POSTed to
+`ATTR_FORWARD_URL` under the **fixed** names the external service expects
+(`af_id`, `os`, `bundle_id`, `firebase_project_id`, `store_id`, `push_token`,
+`locale`, `idfa`, `conversion`, `source_ip`). No User-Agent is sent. If the
+service answers `{ "ok": true, "url": "…" }`, the response carries
+`authorized: true` and the header **`analytics-service: <url>`** — the client
+opens its notification-offer / web-view flow. Empty `ATTR_FORWARD_URL` means "no
+external service", so the app always takes the normal flow.
+
+**Config** (`.env`): `ATTR_PAYLOAD_KEY` (64 hex, identical to the app's
+`OCBeaconKey`), `ATTR_FORWARD_URL`, `ATTR_FORWARD_TIMEOUT`. On the client the key
+lives in `SugarBloom/BeaconKeys.plist` (bundled) and must match the server —
+rotate it per app before release. The key ships inside the app bundle, as any
+client-side symmetric key must; TLS remains the real transport protection.
+
 ## 5. Layout
 
 ```
